@@ -9,6 +9,10 @@ DEMOGRAPHIC_DATA_PATH = os.path.join(current_directory, 'utils', 'preprocessing'
 INTERACTION_DATA_PATH = os.path.join(current_directory, 'utils', 'preprocessing', 'data', 'interaction_data.csv')
 sys.path.append('UserProfiling')
 
+confidence_level_list = ["Very High", "High", "Good", "Mid", "Low"]
+
+n_return_users_default = 50
+random_users_percent_default = 20
 
 # Demogrphic df columns
 city_column = "city"

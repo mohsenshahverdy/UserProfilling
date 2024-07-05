@@ -1,11 +1,75 @@
 import pandas as pd
+import logging
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 from app import config
 
-import pandas as pd
+logger = logging.getLogger("similarity_service")
 
-def filter_users_by_interest(df: pd.DataFrame, interest: str, confidence_level: str):
+
+def get_lower_confidence_level(current_level):
+    """
+    Get the next lower confidence level.
+    """
+    levels = config.confidence_level_list
+    current_index = levels.index(current_level)
+    if current_index < len(levels) - 1:
+        return levels[current_index + 1]
+    else:
+        return "Low"
+
+
+def add_random_users(df: pd.DataFrame, num_random_users: int, confidence_level: str, interest: str) -> pd.DataFrame:
+    """
+    Add random users based on the specified proportions from lower confidence levels or users without interactions.
+
+    Parameters:
+    - df (pd.DataFrame): DataFrame containing user data and interest scores.
+    - num_random_users (int): Number of random users to add.
+    - confidence_level (str): The current confidence level.
+    - interest (str): The column name for the specific interest.
+
+    Returns:
+    - pd.DataFrame: DataFrame with added random users.
+    """
+    # Determine number of users to add from each lower confidence level
+    num_one_level_lower = int(num_random_users * 0.5)
+    num_two_levels_lower = int(num_random_users * 0.3)
+    num_no_interaction = num_random_users - num_one_level_lower - num_two_levels_lower
+    random_users_df = pd.DataFrame()
+
+    # Determine lower confidence levels
+    lower_confidence_1 = get_lower_confidence_level(confidence_level)
+    lower_confidence_2 = get_lower_confidence_level(lower_confidence_1)
+
+    # Get DataFrames for each level
+    df_lower_1 = filter_users_by_interest(df, interest, lower_confidence_1, num_one_level_lower, add_random=None)
+    df_lower_2 = filter_users_by_interest(df, interest, lower_confidence_2, num_two_levels_lower, add_random=None)
+    df_no_interaction = df[df[config.interation_columns].sum(axis=1) == 0]
+
+    # Sample users from each level
+    if num_one_level_lower > 0:
+        random_users_df = pd.concat([random_users_df, df_lower_1.sample(num_one_level_lower, replace=True)])
+
+    if num_two_levels_lower > 0:
+        random_users_df = pd.concat([random_users_df, df_lower_2.sample(num_two_levels_lower, replace=True)])
+
+    if num_no_interaction > 0:
+        if not df_no_interaction.empty:
+            random_users_df = pd.concat([random_users_df, df_no_interaction.sample(num_no_interaction, replace=True)])
+        else:
+            random_users_df = pd.concat([random_users_df, df_lower_2.sample(num_no_interaction, replace=True)])
+
+    logger.info("Number of added user from one lower confidence level %d", len(df_lower_1))
+    logger.info("Number of added user from two lower confidence level %d", len(df_lower_2))
+    logger.info("Number of added user who do not have any interaction %d", len(df_no_interaction))
+
+    return random_users_df
+
+
+
+def filter_users_by_interest(df: pd.DataFrame, interest: str, confidence_level: str, 
+                             num_users: int, add_random: float|None) -> pd.DataFrame:
     """
     Filter users based on interest and confidence level using predefined interest columns.
 
@@ -13,6 +77,8 @@ def filter_users_by_interest(df: pd.DataFrame, interest: str, confidence_level: 
     - df (pd.DataFrame): DataFrame containing user data and interest scores.
     - interest (str): The column name for the specific interest to filter by (must be one of the predefined interests).
     - confidence_level (str): The confidence level ('very high', 'high', 'good', 'mid', 'low').
+    - num_users (int): Number of users to return.
+    - add_random (float, optional): Proportion of random users to add (0 to 1). Defaults to None.
 
     Returns:
     - pd.DataFrame: Filtered DataFrame based on the given confidence level.
@@ -24,36 +90,41 @@ def filter_users_by_interest(df: pd.DataFrame, interest: str, confidence_level: 
         raise ValueError(f"Interest must be one of {interest_columns}")
 
     sorting_col = f"{interest}_interaction"
-    
+
+    # Base filtering based on confidence level
     if confidence_level == "Very High":
-        # Very high confidence: only selected interest positive, all others <= 0
         conditions = (df[interest] > 0) & (df[[col for col in interest_columns if col != interest]].le(0).all(axis=1))
-        return df[conditions].sort_values(by=sorting_col, ascending=False)
-    
+        filtered_df = df[conditions].sort_values(by=sorting_col, ascending=False)
+
     elif confidence_level == "High":
-        # High confidence: selected interest is the maximum and greater than zero
         max_interest = df[interest_columns].idxmax(axis=1)
         conditions = (df[interest] > 0) & (max_interest == interest)
-        return df[conditions].sort_values(by=sorting_col, ascending=False)
-    
+        filtered_df = df[conditions].sort_values(by=sorting_col, ascending=False)
+
     elif confidence_level == "Good":
-        # Good confidence: selected interest greater than zero
-        return df[df[interest] > 0].sort_values(by=sorting_col, ascending=False)
-    
+        filtered_df = df[df[interest] > 0].sort_values(by=sorting_col, ascending=False)
+
     elif confidence_level == "Mid":
-        # Mid confidence: selected interest greater than or equal to zero
-        return df[df[interest] >= 0].sort_values(by=sorting_col, ascending=False)
-    
+        filtered_df = df[df[interest] >= 0].sort_values(by=sorting_col, ascending=False)
+
     elif confidence_level == "Low":
-        # Low confidence: all users
-        return df.sort_values(by=sorting_col, ascending=False)
+        filtered_df = df.sort_values(by=sorting_col, ascending=False)
 
     else:
         raise ValueError("Invalid confidence level. Choose from 'Very high', 'High', 'Good', 'Mid', 'Low'.")
-    
 
-def sort_users_by_cosine_similarity(df:pd.DataFrame, interest_profile: pd.Series) -> pd.DataFrame:
-    
+    # Add random users if specified
+    if add_random is not None:
+        num_random_users = int(num_users * add_random)
+        random_users_df = add_random_users(df, num_random_users, confidence_level, interest)
+        logger.info("Number of random users %d", len(random_users_df))
+        filtered_df = pd.concat([filtered_df, random_users_df]).drop_duplicates().reset_index(drop=True)
+        logger.info("Number of users targeted users after adding random users %d", len(filtered_df))
+
+    return filtered_df.head(num_users)
+
+
+def sort_users_by_cosine_similarity(df: pd.DataFrame, interest_profile: pd.Series) -> pd.DataFrame:
     """
     Sorts users based on the cosine similarity between their interest scores and a given interest profile
     using Scikit-learn's cosine_similarity function. In case of ties in similarity, it sorts based on the weights
@@ -72,7 +143,7 @@ def sort_users_by_cosine_similarity(df:pd.DataFrame, interest_profile: pd.Series
     # Ensure that the sum of the profile values is 1
     if not np.isclose(interest_profile.sum(), 1):
         raise ValueError("The sum of the interest profile values must be 1.")
-    
+
     # Extract the interest columns
     interest_columns = config.interests_columns
 

@@ -17,7 +17,8 @@ class UserData(BaseModel):
     age_group: Optional[Union[str, List[str]]] = Field(default=None, description="Can be a group mapping for age categories.")
     interest: Optional[InterestProfile] = Field(default=None, description="Needs an interest profile for multiple interests.")
     n_users: Optional[int] = Field(default=None, description="Number of recommended target users.")
-    confidence_level: Optional[str] = Field(default=None, description="Number of recommended target users.")
+    confidence_level: Optional[str] = Field(default=None, description="Confidence level.")
+    random_user_percent: Optional[int] = Field(default=None, description="Percentage of random users in recommended target users.")
 
 class UserRequest(BaseModel):
     user_data: UserData

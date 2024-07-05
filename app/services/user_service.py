@@ -50,7 +50,7 @@ def process_user_data(user_data: UserData, data: pd.DataFrame) -> pd.DataFrame:
 
         logger.info( "Remaining data points after filtering by occupation %d", len(data))
 
-        data = handle_interest_profile(user_data, data, user_data.confidence_level)
+        data = handle_interest_profile(user_data, data)
         if user_data.n_users and isinstance(user_data.n_users, int):
             data = data[:user_data.n_users]
         
@@ -62,15 +62,26 @@ def process_user_data(user_data: UserData, data: pd.DataFrame) -> pd.DataFrame:
         return None
 
 
-def handle_interest_profile(user_data: UserData, data: pd.DataFrame, confidence_level: None|str) -> str:
+def handle_interest_profile(user_data: UserData, data: pd.DataFrame) -> str:
+    confidence_level = user_data.confidence_level
     if not confidence_level:
         confidence_level = "Low"
 
+    number_of_users = user_data.n_users 
+    if not number_of_users:
+        number_of_users = config.n_return_users_default
+
+    random_users_percent = user_data.random_user_percent
+    if not random_users_percent:
+        random_users_percent = config.random_users_percent_default
+
+    random_users_percent = random_users_percent / 100
+    
     if user_data:
         if len(user_data.interest.interests) == 1:
-            data = filter_users_by_interest(data, user_data.interest.interests[0], confidence_level)
+            data = filter_users_by_interest(data, user_data.interest.interests[0], confidence_level, num_users=number_of_users, add_random=random_users_percent)
         elif len(user_data.interest.interests) > 1:
             interest_profile = pd.Series(data=user_data.interest.weights, index=user_data.interest.interests)
             data = sort_users_by_cosine_similarity(data, interest_profile)
         
-    return data
+    return data[:number_of_users]
