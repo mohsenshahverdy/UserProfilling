@@ -113,13 +113,31 @@ def filter_users_by_interest(df: pd.DataFrame, interest: str, confidence_level: 
     else:
         raise ValueError("Invalid confidence level. Choose from 'Very high', 'High', 'Good', 'Mid', 'Low'.")
 
-    # Add random users if specified
+   # Add random users if specified
     if add_random is not None:
         num_random_users = int(num_users * add_random)
         random_users_df = add_random_users(df, num_random_users, confidence_level, interest)
         logger.info("Number of random users %d", len(random_users_df))
-        filtered_df = pd.concat([filtered_df, random_users_df]).drop_duplicates().reset_index(drop=True)
-        logger.info("Number of users targeted users after adding random users %d", len(filtered_df))
+        logger.info("Number of filtered users before adding random users %d", len(filtered_df))
+    
+        # Trim the filtered_df to leave space for random users
+        filtered_df_temp = filtered_df[:(num_users - num_random_users)]
+        logger.info("Number of filtered users after reserving space for random users %d", len(filtered_df_temp))
+    
+        # Combine filtered_df and random_users_df, then drop duplicates
+        combined_df = pd.concat([filtered_df_temp, random_users_df]).drop_duplicates().reset_index(drop=True)
+        logger.info("Number of users after adding random users and dropping duplicates %d", len(combined_df))
+    
+        # Calculate shortfall and add more users from the filtered_df if needed
+        shortfall = num_users - len(combined_df)
+        if shortfall > 0:
+            additional_users = filtered_df[len(filtered_df_temp):(len(filtered_df_temp) + shortfall)]
+            combined_df = pd.concat([combined_df, additional_users]).drop_duplicates().reset_index(drop=True)
+            logger.info("Number of users after filling shortfall %d", len(combined_df))
+
+        filtered_df = combined_df
+
+        logger.info("Number of targeted users after final processing %d", len(filtered_df))
 
     return filtered_df.head(num_users)
 
