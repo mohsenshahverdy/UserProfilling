@@ -78,9 +78,9 @@ def handle_interest_profile(user_data: UserData, data: pd.DataFrame) -> str:
     random_users_percent = random_users_percent / 100
     
     if user_data:
-        if len(user_data.interest.interests) == 1:
+        if sum(1 for item in user_data.interest.weights if item > 0) == 1:
             data = filter_users_by_interest(data, user_data.interest.interests[0], confidence_level, num_users=number_of_users, add_random=random_users_percent)
-        elif len(user_data.interest.interests) > 1:
+        else:
             interest_profile = pd.Series(data=user_data.interest.weights, index=user_data.interest.interests)
             data = sort_users_by_cosine_similarity(data, interest_profile)
         
