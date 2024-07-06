@@ -12,7 +12,7 @@ class UserData(BaseModel):
     city: Optional[Union[str, List[str]]] = Field(default=None, description="Can be a specific city, list of cities or 'all'.")
     region: Optional[Union[str, List[str]]] = Field(default=None, description="Can be a group mapping for regions.")
     income: Optional[List[int]] = Field(default=None, description="Can be 'quantile based' or 'all'.")
-    income_group: Optional[Union[str, List[int]]] = Field(default=None, description="Can be a group mapping for income levels.")
+    income_group: Optional[Union[str, List[str]]] = Field(default=None, description="Can be a group mapping for income levels.")
     age: Optional[List[int]] = Field(default=None, description="Can be a range or a category label for ages.")
     age_group: Optional[Union[str, List[str]]] = Field(default=None, description="Can be a group mapping for age categories.")
     interest: Optional[InterestProfile] = Field(default=None, description="Needs an interest profile for multiple interests.")
