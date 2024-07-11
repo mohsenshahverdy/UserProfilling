@@ -66,6 +66,10 @@ def add_random_users(df: pd.DataFrame, num_random_users: int, confidence_level: 
 
     return random_users_df
 
+def is_in_top_3(row, interest_columns, interest):
+    sorted_values = row[interest_columns].sort_values(ascending=False)
+    top_3_values = sorted_values.head(3).values
+    return row[interest] in top_3_values
 
 
 def filter_users_by_interest(df: pd.DataFrame, interest: str, confidence_level: str, 
@@ -102,7 +106,11 @@ def filter_users_by_interest(df: pd.DataFrame, interest: str, confidence_level: 
         filtered_df = df[conditions].sort_values(by=sorting_col, ascending=False)
 
     elif confidence_level == "Good":
-        filtered_df = df[df[interest] > 0].sort_values(by=sorting_col, ascending=False)
+        # Apply the function to filter rows
+        filtered_df = df[df.apply(is_in_top_3, axis=1, interest_columns=interest_columns, interest=interest)]
+
+        # Sort the filtered DataFrame by the sorting column in descending order
+        filtered_df = filtered_df.sort_values(by=sorting_col, ascending=False)
 
     elif confidence_level == "Mid":
         filtered_df = df[df[interest] >= 0].sort_values(by=sorting_col, ascending=False)
